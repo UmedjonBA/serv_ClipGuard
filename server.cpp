@@ -34,9 +34,23 @@ void HandleClient(SOCKET clientSocket, int clientId) {
         if (bytesReceived <= 0) break;
 
         if (msg.type == MessageType::REGULAR) {
-            std::cout << "\nClipboard content from [" << clientId << "] " 
-                      << client.info.username << "@" << client.info.hostname << ":\n" 
-                      << msg.data << std::endl;
+            // Convert UTF-8 to wide string for proper display
+            int size_needed = MultiByteToWideChar(CP_UTF8, 0, msg.data, -1, NULL, 0);
+            if (size_needed > 0) {
+                std::vector<wchar_t> wide_str(size_needed);
+                MultiByteToWideChar(CP_UTF8, 0, msg.data, -1, wide_str.data(), size_needed);
+                
+                // Convert back to UTF-8 for console output
+                int utf8_size = WideCharToMultiByte(CP_UTF8, 0, wide_str.data(), -1, NULL, 0, NULL, NULL);
+                if (utf8_size > 0) {
+                    std::vector<char> utf8_str(utf8_size);
+                    WideCharToMultiByte(CP_UTF8, 0, wide_str.data(), -1, utf8_str.data(), utf8_size, NULL, NULL);
+                    
+                    std::cout << "\nClipboard content from [" << clientId << "] " 
+                              << client.info.username << "@" << client.info.hostname << ":\n" 
+                              << utf8_str.data() << std::endl;
+                }
+            }
         }
     }
 
