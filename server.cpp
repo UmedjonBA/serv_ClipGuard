@@ -4,6 +4,8 @@
 #include <thread>
 #include <mutex>
 #include <map>
+#include <fcntl.h>
+#include <io.h>
 
 struct ClientConnection {
     SOCKET socket;
@@ -23,7 +25,8 @@ void HandleClient(SOCKET clientSocket, int clientId) {
     if (bytesReceived > 0 && msg.type == MessageType::INIT) {
         client.info = msg.clientInfo;
         std::cout << "New client connected [" << clientId << "]: " 
-                  << client.info.username << "@" << client.info.hostname << std::endl;
+                  << client.info.username << "@" 
+                  << client.info.hostname << std::endl;
     }
 
     while (true) {
@@ -47,6 +50,16 @@ void HandleClient(SOCKET clientSocket, int clientId) {
 }
 
 int main() {
+    // Set console to use UTF-8
+    SetConsoleOutputCP(CP_UTF8);
+    
+    // Test UTF-8 output
+    std::cout << "Testing UTF-8 output with Chinese characters:" << std::endl;
+    std::cout << "你好世界 (Hello World)" << std::endl;
+    std::cout << "中国 (China)" << std::endl;
+    std::cout << "北京 (Beijing)" << std::endl;
+    std::cout << "------------------------" << std::endl;
+
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         std::cerr << "Failed to initialize Winsock" << std::endl;
