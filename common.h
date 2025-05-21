@@ -1,18 +1,21 @@
 #pragma once
 
-#include <winsock2.h>
-#include <windows.h>
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#include <string>
 
 #pragma comment(lib, "ws2_32.lib")
 
-constexpr int DEFAULT_PORT = 12345;
-constexpr int BUFFER_SIZE = 1024;
-constexpr int MAX_NAME_LENGTH = 256;
+const int DEFAULT_PORT = 12345;
+const int BUFFER_SIZE = 1024;  // Keep buffer size smaller for better memory usage
+const int MAX_NAME_LENGTH = 256;
 
 // Message types
 enum class MessageType {
-    INIT,    // Client initialization
-    REGULAR  // Regular message (clipboard content)
+    INIT,           // Client initialization
+    REGULAR,        // Regular message (clipboard content)
+    REGULAR_CHUNK,  // Part of a large message
+    REGULAR_END     // End of a large message
 };
 
 struct ClientInfo {
@@ -21,7 +24,9 @@ struct ClientInfo {
 };
 
 struct Message {
-    ClientInfo clientInfo;
     MessageType type;
-    char data[BUFFER_SIZE];
+    union {
+        ClientInfo clientInfo;
+        char data[BUFFER_SIZE];
+    };
 }; 

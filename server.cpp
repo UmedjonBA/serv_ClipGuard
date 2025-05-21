@@ -1,5 +1,6 @@
 #include "common.h"
 #include <iostream>
+#include <string>
 #include <vector>
 #include <thread>
 #include <mutex>
@@ -12,54 +13,64 @@ struct ClientConnection {
     ClientInfo info;
 };
 
-std::map<int, ClientConnection> clients;  // Client ID -> connection info
+std::map<SOCKET, ClientInfo> clients;
 std::mutex clientsMutex;
-int nextClientId = 1;
 
-void HandleClient(SOCKET clientSocket, int clientId) {
-    Message msg = {};
-    ClientConnection& client = clients[clientId];
-
-    // Get client info
-    int bytesReceived = recv(clientSocket, (char*)&msg, sizeof(Message), 0);
-    if (bytesReceived > 0 && msg.type == MessageType::INIT) {
-        client.info = msg.clientInfo;
-        std::cout << "New client connected [" << clientId << "]: " 
-                  << client.info.username << "@" 
-                  << client.info.hostname << std::endl;
-    }
+void HandleClient(SOCKET clientSocket) {
+    char buffer[sizeof(Message)];
+    std::string currentMessage;
+    bool isReceivingChunks = false;
 
     while (true) {
-        bytesReceived = recv(clientSocket, (char*)&msg, sizeof(Message), 0);
-        if (bytesReceived <= 0) break;
+        int bytesReceived = recv(clientSocket, buffer, sizeof(Message), 0);
+        if (bytesReceived <= 0) {
+            break;
+        }
 
-        if (msg.type == MessageType::REGULAR) {
-            // Convert UTF-8 to wide string for proper display
-            int size_needed = MultiByteToWideChar(CP_UTF8, 0, msg.data, -1, NULL, 0);
-            if (size_needed > 0) {
-                std::vector<wchar_t> wide_str(size_needed);
-                MultiByteToWideChar(CP_UTF8, 0, msg.data, -1, wide_str.data(), size_needed);
-                
-                // Convert back to UTF-8 for console output
-                int utf8_size = WideCharToMultiByte(CP_UTF8, 0, wide_str.data(), -1, NULL, 0, NULL, NULL);
-                if (utf8_size > 0) {
-                    std::vector<char> utf8_str(utf8_size);
-                    WideCharToMultiByte(CP_UTF8, 0, wide_str.data(), -1, utf8_str.data(), utf8_size, NULL, NULL);
-                    
-                    std::cout << "\nClipboard content from [" << clientId << "] " 
-                              << client.info.username << "@" << client.info.hostname << ":\n" 
-                              << utf8_str.data() << std::endl;
+        Message* msg = (Message*)buffer;
+        
+        switch (msg->type) {
+            case MessageType::INIT: {
+                std::lock_guard<std::mutex> lock(clientsMutex);
+                clients[clientSocket] = msg->clientInfo;
+                std::cout << "New client connected: " << msg->clientInfo.username 
+                         << " from " << msg->clientInfo.hostname << std::endl;
+                break;
+            }
+            case MessageType::REGULAR: {
+                if (isReceivingChunks) {
+                    currentMessage += msg->data;
+                } else {
+                    std::cout << "\nFrom " << clients[clientSocket].username 
+                             << " (" << clients[clientSocket].hostname << "):\n"
+                             << msg->data << std::endl;
                 }
+                break;
+            }
+            case MessageType::REGULAR_CHUNK: {
+                currentMessage += msg->data;
+                isReceivingChunks = true;
+                break;
+            }
+            case MessageType::REGULAR_END: {
+                if (isReceivingChunks) {
+                    std::cout << "\nFrom " << clients[clientSocket].username 
+                             << " (" << clients[clientSocket].hostname << "):\n"
+                             << currentMessage << std::endl;
+                    currentMessage.clear();
+                    isReceivingChunks = false;
+                }
+                break;
             }
         }
     }
 
-    // Remove client on disconnect
     {
         std::lock_guard<std::mutex> lock(clientsMutex);
-        clients.erase(clientId);
+        std::cout << "Client disconnected: " << clients[clientSocket].username 
+                 << " from " << clients[clientSocket].hostname << std::endl;
+        clients.erase(clientSocket);
     }
-    std::cout << "Client [" << clientId << "] disconnected" << std::endl;
     closesocket(clientSocket);
 }
 
@@ -89,41 +100,33 @@ int main() {
 
     sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(DEFAULT_PORT);
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        std::cerr << "Bind failed" << std::endl;
+        std::cerr << "Failed to bind socket" << std::endl;
         closesocket(serverSocket);
         WSACleanup();
         return 1;
     }
 
     if (listen(serverSocket, SOMAXCONN) == SOCKET_ERROR) {
-        std::cerr << "Listen failed" << std::endl;
+        std::cerr << "Failed to listen on socket" << std::endl;
         closesocket(serverSocket);
         WSACleanup();
         return 1;
     }
 
-    std::cout << "Server is listening on port " << DEFAULT_PORT << std::endl;
-    std::cout << "Press Ctrl+C to exit" << std::endl;
+    std::cout << "Server started. Waiting for connections..." << std::endl;
 
     while (true) {
-        SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
+        SOCKET clientSocket = accept(serverSocket, NULL, NULL);
         if (clientSocket == INVALID_SOCKET) {
-            std::cerr << "Accept failed" << std::endl;
+            std::cerr << "Failed to accept connection" << std::endl;
             continue;
         }
 
-        int clientId;
-        {
-            std::lock_guard<std::mutex> lock(clientsMutex);
-            clientId = nextClientId++;
-            clients[clientId] = {clientSocket, {}};
-        }
-
-        std::thread clientThread(HandleClient, clientSocket, clientId);
+        std::thread clientThread(HandleClient, clientSocket);
         clientThread.detach();
     }
 

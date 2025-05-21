@@ -44,6 +44,37 @@ std::wstring ProcessTextClipboard() {
     return result;
 }
 
+void SendLargeMessage(SOCKET sock, const std::wstring& content) {
+    // Convert wide string to UTF-8
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, content.c_str(), -1, NULL, 0, NULL, NULL);
+    if (size_needed <= 0) return;
+
+    std::vector<char> utf8_str(size_needed);
+    WideCharToMultiByte(CP_UTF8, 0, content.c_str(), -1, utf8_str.data(), size_needed, NULL, NULL);
+
+    // Send message in chunks
+    size_t total_size = strlen(utf8_str.data());
+    size_t sent = 0;
+    bool is_first = true;
+
+    while (sent < total_size) {
+        Message msg = {};
+        msg.type = is_first ? MessageType::REGULAR : MessageType::REGULAR_CHUNK;
+        size_t chunk_size = std::min((size_t)BUFFER_SIZE - 1, total_size - sent);
+        
+        strncpy_s(msg.data, utf8_str.data() + sent, chunk_size);
+        send(sock, (char*)&msg, sizeof(Message), 0);
+        
+        sent += chunk_size;
+        is_first = false;
+    }
+
+    // Send end message
+    Message end_msg = {};
+    end_msg.type = MessageType::REGULAR_END;
+    send(sock, (char*)&end_msg, sizeof(Message), 0);
+}
+
 void MonitorClipboard(SOCKET sock) {
     // Previous clipboard sequence number
     DWORD lastSequence = GetClipboardSequenceNumber();
@@ -56,8 +87,6 @@ void MonitorClipboard(SOCKET sock) {
             lastSequence = currentSequence;
             
             if (OpenClipboard(NULL)) {
-                Message msg = {};
-                msg.type = MessageType::REGULAR;
                 std::wstring clipboardContent;
                 
                 // Check for files
@@ -70,12 +99,7 @@ void MonitorClipboard(SOCKET sock) {
                 }
                 
                 if (!clipboardContent.empty()) {
-                    // Convert wide string to UTF-16 bytes
-                    int size_needed = WideCharToMultiByte(CP_UTF8, 0, clipboardContent.c_str(), -1, NULL, 0, NULL, NULL);
-                    if (size_needed > 0 && size_needed < BUFFER_SIZE) {
-                        WideCharToMultiByte(CP_UTF8, 0, clipboardContent.c_str(), -1, msg.data, BUFFER_SIZE, NULL, NULL);
-                        send(sock, (char*)&msg, sizeof(Message), 0);
-                    }
+                    SendLargeMessage(sock, clipboardContent);
                 }
                 
                 CloseClipboard();
