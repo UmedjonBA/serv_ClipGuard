@@ -1,4 +1,5 @@
 #include "common.h"
+#include "database.h"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -15,6 +16,7 @@ struct ClientConnection {
 
 std::map<SOCKET, ClientInfo> clients;
 std::mutex clientsMutex;
+Database db;
 
 void HandleClient(SOCKET clientSocket) {
     char buffer[sizeof(Message)];
@@ -44,6 +46,18 @@ void HandleClient(SOCKET clientSocket) {
                     std::cout << "\nFrom " << clients[clientSocket].username 
                              << " (" << clients[clientSocket].hostname << "):\n"
                              << msg->data << std::endl;
+                    
+                    // Save to database
+                    try {
+                        db.saveClipboardEvent(
+                            clients[clientSocket].username,
+                            clients[clientSocket].hostname,
+                            "text",
+                            msg->data
+                        );
+                    } catch (const std::exception& e) {
+                        std::cerr << "Failed to save to database: " << e.what() << std::endl;
+                    }
                 }
                 break;
             }
@@ -57,6 +71,19 @@ void HandleClient(SOCKET clientSocket) {
                     std::cout << "\nFrom " << clients[clientSocket].username 
                              << " (" << clients[clientSocket].hostname << "):\n"
                              << currentMessage << std::endl;
+                    
+                    // Save to database
+                    try {
+                        db.saveClipboardEvent(
+                            clients[clientSocket].username,
+                            clients[clientSocket].hostname,
+                            "text",
+                            currentMessage
+                        );
+                    } catch (const std::exception& e) {
+                        std::cerr << "Failed to save to database: " << e.what() << std::endl;
+                    }
+                    
                     currentMessage.clear();
                     isReceivingChunks = false;
                 }
