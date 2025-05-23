@@ -49,11 +49,15 @@ void HandleClient(SOCKET clientSocket) {
                     
                     // Save to database
                     try {
+                        std::string event_type = "text";
+                        if (currentMessage.find("Files detected in clipboard:") != std::string::npos) {
+                            event_type = "file";
+                        }
                         db.saveClipboardEvent(
                             clients[clientSocket].username,
                             clients[clientSocket].hostname,
-                            "text",
-                            msg->data
+                            event_type,
+                            currentMessage
                         );
                     } catch (const std::exception& e) {
                         std::cerr << "Failed to save to database: " << e.what() << std::endl;
@@ -74,10 +78,14 @@ void HandleClient(SOCKET clientSocket) {
                     
                     // Save to database
                     try {
+                        std::string event_type = "text";
+                        if (currentMessage.find("Files detected in clipboard:") != std::string::npos) {
+                            event_type = "file";
+                        }
                         db.saveClipboardEvent(
                             clients[clientSocket].username,
                             clients[clientSocket].hostname,
-                            "text",
+                            event_type,
                             currentMessage
                         );
                     } catch (const std::exception& e) {
@@ -105,12 +113,6 @@ int main() {
     // Set console to use UTF-8
     SetConsoleOutputCP(CP_UTF8);
     
-    // Test UTF-8 output
-    std::cout << "Testing UTF-8 output with Chinese characters:" << std::endl;
-    std::cout << "你好世界 (Hello World)" << std::endl;
-    std::cout << "中国 (China)" << std::endl;
-    std::cout << "北京 (Beijing)" << std::endl;
-    std::cout << "------------------------" << std::endl;
 
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
