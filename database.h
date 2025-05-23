@@ -52,18 +52,22 @@ public:
                     }
                 }
                 
-                txn.exec_params(
-                    "INSERT INTO clipboard_events (username, hostname, event_type, content, file_path, file_type) "
-                    "VALUES ($1, $2, $3, $4, $5, $6)",
-                    username, hostname, event_type, content, path, type
-                );
+                std::string query = "INSERT INTO clipboard_events (username, hostname, event_type, content, file_path, file_type) "
+                    "VALUES (" + txn.quote(username) + ", " + 
+                    txn.quote(hostname) + ", " + 
+                    txn.quote(event_type) + ", " + 
+                    txn.quote(content) + ", " + 
+                    txn.quote(path) + ", " + 
+                    txn.quote(type) + ")";
+                txn.exec(query).exec();
             } else {
                 // Для текстовых событий
-                txn.exec_params(
-                    "INSERT INTO clipboard_events (username, hostname, event_type, content) "
-                    "VALUES ($1, $2, $3, $4)",
-                    username, hostname, event_type, content
-                );
+                std::string query = "INSERT INTO clipboard_events (username, hostname, event_type, content) "
+                    "VALUES (" + txn.quote(username) + ", " + 
+                    txn.quote(hostname) + ", " + 
+                    txn.quote(event_type) + ", " + 
+                    txn.quote(content) + ")";
+                txn.exec(query).exec();
             }
             txn.commit();
         } catch (const std::exception& e) {
