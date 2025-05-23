@@ -59,7 +59,7 @@ public:
                     txn.quote(content) + ", " + 
                     txn.quote(path) + ", " + 
                     txn.quote(type) + ")";
-                txn.exec(query).exec();
+                txn.exec(query);
             } else {
                 // Для текстовых событий
                 std::string query = "INSERT INTO clipboard_events (username, hostname, event_type, content) "
@@ -67,7 +67,7 @@ public:
                     txn.quote(hostname) + ", " + 
                     txn.quote(event_type) + ", " + 
                     txn.quote(content) + ")";
-                txn.exec(query).exec();
+                txn.exec(query);
             }
             txn.commit();
         } catch (const std::exception& e) {

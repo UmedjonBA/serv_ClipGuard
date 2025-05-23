@@ -50,14 +50,14 @@ void HandleClient(SOCKET clientSocket) {
                     // Save to database
                     try {
                         std::string event_type = "text";
-                        if (currentMessage.find("Files detected in clipboard:") != std::string::npos) {
+                        if (std::string(msg->data).find("Files detected in clipboard:") != std::string::npos) {
                             event_type = "file";
                         }
                         db.saveClipboardEvent(
                             clients[clientSocket].username,
                             clients[clientSocket].hostname,
                             event_type,
-                            currentMessage
+                            msg->data
                         );
                     } catch (const std::exception& e) {
                         std::cerr << "Failed to save to database: " << e.what() << std::endl;
