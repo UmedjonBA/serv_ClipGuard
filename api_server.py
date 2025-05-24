@@ -28,6 +28,12 @@ class ClipboardEvent(BaseModel):
     file_type: Optional[str]
     created_at: datetime
 
+class ClientInfo(BaseModel):
+    username: str
+    hostname: str
+    total_events: int
+    last_activity: datetime
+
 # Конфигурация базы данных
 DB_CONFIG = {
     "dbname": "clipboard_monitor",
@@ -130,6 +136,89 @@ async def get_stats():
             "by_type": by_type,
             "by_user": by_user
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/all/", response_model=List[ClipboardEvent])
+async def get_all_events(
+    skip: int = 0,
+    limit: int = 100
+):
+    """Получить все события из базы данных"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        query = """
+            SELECT * FROM public.clipboard_events 
+            ORDER BY created_at DESC 
+            LIMIT %s OFFSET %s
+        """
+        
+        cur.execute(query, [limit, skip])
+        events = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        return events
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/clients/", response_model=List[ClientInfo])
+async def get_clients():
+    """Получить список всех клиентов с их статистикой"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        query = """
+            SELECT 
+                username,
+                hostname,
+                COUNT(*) as total_events,
+                MAX(created_at) as last_activity
+            FROM public.clipboard_events
+            GROUP BY username, hostname
+            ORDER BY last_activity DESC
+        """
+        
+        cur.execute(query)
+        clients = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        return clients
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/clients/{username}/{hostname}/", response_model=List[ClipboardEvent])
+async def get_client_events(
+    username: str,
+    hostname: str,
+    skip: int = 0,
+    limit: int = 100
+):
+    """Получить все события конкретного клиента"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        query = """
+            SELECT * FROM public.clipboard_events 
+            WHERE username = %s AND hostname = %s
+            ORDER BY created_at DESC 
+            LIMIT %s OFFSET %s
+        """
+        
+        cur.execute(query, [username, hostname, limit, skip])
+        events = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        return events
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

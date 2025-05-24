@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(clipboard_monitor)
 
+# Настройка vcpkg
+set(CMAKE_TOOLCHAIN_FILE "C:/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain file")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -11,6 +14,10 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
 # Настройки для статической линковки
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".lib")
+
+# Явно указываем путь к pqxx, если он установлен в нестандартном месте
+set(PQXX_ROOT "C:/Program Files/libpqxx" CACHE PATH "Path to libpqxx installation")
+set(PQXX_STATIC_LIBRARY "C:/Program Files/libpqxx/lib/pqxx.lib" CACHE FILEPATH "Path to pqxx static library")
 
 # Find packages
 find_package(PostgreSQL REQUIRED)
@@ -31,7 +38,7 @@ add_executable(client
 target_link_libraries(server
     PRIVATE
     ws2_32
-    libpqxx::pqxx
+    libpqxx::pqxx_static
     libpq
 )
 

@@ -111,7 +111,12 @@ void MonitorClipboard(SOCKET sock) {
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    if (argc != 2) {
+        std::cerr << "Usage: " << argv[0] << " <server_ip>" << std::endl;
+        return 1;
+    }
+
     WSADATA wsaData;  // Структура для инициализации WinSock
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {  // Инициализируем WinSock
         std::cerr << "Failed to initialize Winsock" << std::endl;
@@ -128,7 +133,7 @@ int main() {
     sockaddr_in serverAddr;  // Структура адреса сервера
     serverAddr.sin_family = AF_INET;  // Устанавливаем семейство адресов
     serverAddr.sin_port = htons(DEFAULT_PORT);  // Устанавливаем порт
-    inet_pton(AF_INET, "127.0.0.1", &serverAddr.sin_addr);  // Устанавливаем IP-адрес
+    inet_pton(AF_INET, argv[1], &serverAddr.sin_addr);  // Устанавливаем IP-адрес из аргумента командной строки
 
     if (connect(clientSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {  // Подключаемся к серверу
         std::cerr << "Failed to connect to server" << std::endl;
